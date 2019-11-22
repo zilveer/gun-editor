@@ -1,23 +1,57 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
+import diff from "fast-diff";
 
-const SPECIAL_KEYS = {
-  Enter: "\n"
-};
-export const Editor = ({ getId, document, onSetDocumentTitle, onAddAtom }) => {
+export const Editor = ({
+  getId,
+  document,
+  onSetDocumentTitle,
+  onAddAtom,
+  onDeleteAtom
+}) => {
   const [editing, setEditing] = useState(false);
   const [newDocumentTitle, setNewDocumentTitle] = useState("");
-  const [cursor, setCursor] = useState(null);
-  const cursorIndex = cursor
-    ? document.atoms.findIndex(atom => getId(atom) === cursor)
-    : document.atoms.length;
+  const ref = useRef(null);
+  const newContent = document.atoms.map(atom => atom.atom).join("");
+  const [content, setContent] = useState(newContent);
 
   useEffect(() => {
-    if (ref.current) {
-      ref.current.selectionStart = cursorIndex;
-    }
-  }, [document, cursorIndex]);
+    if (ref.current && newContent !== content) {
+      const [selectionStart, selectionEnd] = [
+        "selectionStart",
+        "selectionEnd"
+      ].map(key => {
+        const value = ref.current[key];
+        let index = 0;
+        let movement = 0;
+        thefor: for (const [action, part] of diff(content, newContent)) {
+          switch (action) {
+            case diff.INSERT:
+              movement += part.length;
+              break;
+            case diff.EQUAL:
+              if (value < index + part.length) {
+                break thefor;
+              }
+              break;
+            case diff.DELETE:
+              if (value < index + part.length) {
+                movement -= value - index;
+                break thefor;
+              }
 
-  const ref = useRef(null);
+              movement -= part.length;
+              index += part.length;
+              break;
+          }
+        }
+        return ref.current[key] + movement;
+      });
+      ref.current.value = newContent;
+      ref.current.selectionStart = selectionStart;
+      ref.current.selectionEnd = selectionEnd;
+      setContent(newContent);
+    }
+  }, [ref, newContent]);
 
   return (
     <div className="document">
@@ -49,35 +83,37 @@ export const Editor = ({ getId, document, onSetDocumentTitle, onAddAtom }) => {
       <textarea
         className="document-content"
         ref={ref}
-        onClick={() =>
-          setCursor(getId(document.atoms[ref.current.selectionStart]))
-        }
-        onKeyDown={e => {
-          setCursor(getId(document.atoms[ref.current.selectionStart]));
-
-          if (e.key === "Backspace") {
+        onChange={e => {
+          setContent(e.target.value);
+          let index = 0;
+          for (const [action, part] of diff(
+            content,
+            e.target.value,
+            ref.current.cursorIndex
+          )) {
+            switch (action) {
+              case diff.INSERT:
+                for (const character of part) {
+                  onAddAtom(
+                    character,
+                    document.atoms[index - 1],
+                    document.atoms[index]
+                  );
+                }
+                break;
+              case diff.EQUAL:
+                index += part.length;
+                break;
+              case diff.DELETE:
+                for (let i = 0; i < part.length; i++) {
+                  onDeleteAtom(getId(document.atoms[index + i]));
+                }
+                index += part.length;
+                break;
+            }
           }
-
-          let key;
-          if (SPECIAL_KEYS[e.key]) {
-            key = SPECIAL_KEYS[e.key];
-          } else if (e.key.length === 1) {
-            key = e.key;
-          } else {
-            return;
-          }
-          onAddAtom(
-            key,
-            document.atoms[ref.current.selectionStart - 1],
-            document.atoms[ref.current.selectionStart]
-          );
         }}
-        onChange={() => {
-          setTimeout(() => {
-            ref.current.selectionStart = ref.current.selectionEnd = cursorIndex;
-          }, 10);
-        }}
-        value={document.atoms.map(atom => atom.atom).join("")}
+        defaultValue={content}
         autoFocus
       />
     </div>

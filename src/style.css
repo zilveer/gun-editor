@@ -36,25 +36,12 @@ html,
 
 .document-content {
   flex: 1 1 auto;
-
-  margin: 2rem;
   border: 1px solid lightgray;
+  margin: 0.5rem;
 }
 
-.cursor {
-  position: absolute;
-  transform: translateX(-2px);
-  animation: blinker 1s linear infinite;
-}
-
-@keyframes blinker {
-  49% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0;
-  }
-  100% {
-    opacity: 0;
-  }
+textarea {
+  flex: 1 1 auto;
+  font-family: monospace;
+  font-size: 120%;
 }

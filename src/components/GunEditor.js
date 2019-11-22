@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 
 const Gun = require("gun/gun");
 
-const getId = element => element && element["_"]["#"];
+const getId = element => element && element["_"] && element["_"]["#"];
 
 const useRerender = () => {
   const [, setRender] = useState({});
@@ -90,6 +90,12 @@ export const GunEditor = ({ id }) => {
           .put({
             "#": atomId
           });
+      }}
+      onDeleteAtom={atomId => {
+        gun
+          .get(id)
+          .get("atoms")
+          .put({ [atomId]: null });
       }}
     />
   );

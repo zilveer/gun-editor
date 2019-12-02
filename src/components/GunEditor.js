@@ -3,13 +3,19 @@ import { GunContinuousSequence } from "crdt-continuous-sequence";
 import React, { useState, useEffect } from "react";
 import { useGun, getId, getUUID, getPub, getSet, put } from "nicks-gun-utils";
 
-export const GunEditor = ({ id, Gun, gun, priv, epriv }) => {
-  const cs = new GunContinuousSequence(gun);
+const Gun = require("gun/gun");
+require("gun/sea");
+
+export const GunEditor = ({ id, priv, epriv }) => {
+  const [gun, setGun] = useState(null);
   const pub = getPub(id);
   const pair = pub && priv && { pub, priv, epriv };
   const [data, onData] = useGun(Gun, useState, pair);
 
   useEffect(() => {
+    const gun = Gun({
+      peers: ["https://gunjs.herokuapp.com/gun"]
+    });
     gun.get(id).on(onData);
 
     gun
@@ -17,8 +23,14 @@ export const GunEditor = ({ id, Gun, gun, priv, epriv }) => {
       .on(onData)
       .map()
       .on(onData);
-  }, [gun]);
+    setGun(gun);
+  }, []);
 
+  if (!gun) {
+    return <div>Loading...</div>;
+  }
+
+  const cs = new GunContinuousSequence(gun);
   const document = {
     ...data[id],
     atoms: cs.sort(getSet(data, `${id}.atoms`))

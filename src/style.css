@@ -20,6 +20,7 @@ html,
 .new-document {
   width: 20rem;
   margin: auto;
+  text-align: center;
 }
 
 .document {

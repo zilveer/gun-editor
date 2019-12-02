@@ -1,101 +1,51 @@
 import { Editor } from "./Editor";
 import { GunContinuousSequence } from "crdt-continuous-sequence";
 import React, { useState, useEffect } from "react";
+import { useGun, getId, getUUID, getPub, getSet, put } from "nicks-gun-utils";
 
-const Gun = require("gun/gun");
-
-const getId = element => element && element["_"] && element["_"]["#"];
-
-const useRerender = () => {
-  const [, setRender] = useState({});
-  const rerender = () => setRender({});
-  return rerender;
-};
-
-const getSet = (data, id, key) => {
-  const entity = data[id];
-  if (!entity || !entity[key]) {
-    return [];
-  }
-  const set = data[entity[key]["#"]];
-  if (!set) {
-    return [];
-  }
-  const arr = Object.keys(set)
-    .filter(key => key !== "_")
-    .map(key => set[key])
-    .filter(Boolean)
-    .map(ref => data[ref["#"]])
-    .filter(Boolean);
-  return arr;
-};
-
-export const GunEditor = ({ id }) => {
-  const [gun, setGun] = useState(null);
-  const [cs, setCs] = useState(null);
-  const rerender = useRerender();
+export const GunEditor = ({ id, Gun, gun, priv, epriv }) => {
+  const cs = new GunContinuousSequence(gun);
+  const pub = getPub(id);
+  const pair = pub && priv && { pub, priv, epriv };
+  const [data, onData] = useGun(Gun, useState, pair);
 
   useEffect(() => {
-    const gun = Gun({
-      peers: ["https://gunjs.herokuapp.com/gun"]
-    });
-    const cs = new GunContinuousSequence(gun);
-    setGun(gun);
-    setCs(cs);
-  }, []);
+    gun.get(id).on(onData);
 
-  useEffect(() => {
-    if (gun) {
-      gun
-        .get(id)
-        .on(rerender)
-        .get("atoms")
-        .map()
-        .on(rerender);
-    }
+    gun
+      .get(`${id}.atoms`)
+      .on(onData)
+      .map()
+      .on(onData);
   }, [gun]);
 
-  if (!gun || !cs) {
-    return <div>Loading...</div>;
-  }
-
-  const data = gun._.graph;
   const document = {
     ...data[id],
-    atoms: cs.sort(getSet(data, id, "atoms"))
+    atoms: cs.sort(getSet(data, `${id}.atoms`))
   };
 
   return (
     <Editor
       getId={getId}
       document={document}
-      sort={cs.sort}
       id={id}
-      onSetDocumentTitle={title =>
-        gun
-          .get(id)
-          .get("title")
-          .put(title)
-      }
-      onAddAtom={(atom, prev, next) => {
-        const atomId = gun.opt()._.opt.uuid();
-        gun.get(atomId).put({
-          atom,
-          index: JSON.stringify(cs.getIndexBetween(atomId, prev, next))
-        });
-        gun
-          .get(id)
-          .get("atoms")
-          .get(atomId)
-          .put({
-            "#": atomId
-          });
+      onSetDocumentTitle={title => put(Gun, gun, id, "title", title, pair)}
+      onAddAtom={async (atom, prev, next) => {
+        const key = getUUID(gun);
+        const atomId = `${id}.atoms.${key}`;
+        await put(Gun, gun, atomId, "atom", atom, pair);
+        await put(
+          Gun,
+          gun,
+          atomId,
+          "index",
+          JSON.stringify(cs.getIndexBetween(atomId, prev, next)),
+          pair
+        );
+        await put(Gun, gun, `${id}.atoms`, key, { "#": atomId }, pair);
       }}
-      onDeleteAtom={atomId => {
-        gun
-          .get(id)
-          .get("atoms")
-          .put({ [atomId]: null });
+      onDeleteAtom={async atomId => {
+        await put(Gun, gun, `${id}.atoms`, /\w+$/.exec(atomId)[0], null, pair);
       }}
     />
   );

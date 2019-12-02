@@ -64,6 +64,7 @@ export const Editor = ({
           }}
         >
           <input
+            autoFocus
             value={newDocumentTitle}
             onChange={e => setNewDocumentTitle(e.target.value)}
             placeholder="document title"

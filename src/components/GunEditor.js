@@ -17,7 +17,6 @@ export const GunEditor = ({ id, priv, epriv }) => {
       peers: ["https://gunjs.herokuapp.com/gun"]
     });
     gun.get(id).on(onData);
-
     gun
       .get(`${id}.atoms`)
       .on(onData)

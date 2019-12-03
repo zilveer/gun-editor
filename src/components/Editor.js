@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import diff from "fast-diff";
+import { getPub } from "nicks-gun-utils";
 
 export const Editor = ({
   getId,
@@ -9,6 +10,10 @@ export const Editor = ({
   onAddAtom,
   onDeleteAtom
 }) => {
+  const pub = getPub(id);
+  const title =
+    (document && document.title) ||
+    id.replace(`~${pub}.`, "").replace(`~${pub}`);
   const [editing, setEditing] = useState(false);
   const [newDocumentTitle, setNewDocumentTitle] = useState("");
   const ref = useRef(null);
@@ -79,7 +84,7 @@ export const Editor = ({
           }}
           className="document-title"
         >
-          {(document && document.title) || id}
+          {title}
         </h1>
       )}
       <textarea

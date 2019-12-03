@@ -3,6 +3,7 @@ import diff from "fast-diff";
 
 export const Editor = ({
   getId,
+  id,
   document,
   onSetDocumentTitle,
   onAddAtom,
@@ -78,7 +79,7 @@ export const Editor = ({
           }}
           className="document-title"
         >
-          {(document && document.title) || "Set document title"}
+          {(document && document.title) || id}
         </h1>
       )}
       <textarea

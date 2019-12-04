@@ -3,12 +3,12 @@ import diff from "fast-diff";
 import { getPub } from "nicks-gun-utils";
 
 export const Editor = ({
-  getId,
   id,
   document,
+  content: newContent,
   onSetDocumentTitle,
-  onAddAtom,
-  onDeleteAtom
+  onAddAtoms,
+  onDeleteAtoms
 }) => {
   const pub = getPub(id);
   const title =
@@ -17,11 +17,10 @@ export const Editor = ({
   const [editing, setEditing] = useState(false);
   const [newDocumentTitle, setNewDocumentTitle] = useState("");
   const ref = useRef(null);
-  const newContent = document.atoms.map(atom => atom.atom).join("");
   const [content, setContent] = useState(newContent);
 
   useEffect(() => {
-    if (ref.current && newContent !== content) {
+    if (ref.current) {
       const [selectionStart, selectionEnd] = [
         "selectionStart",
         "selectionEnd"
@@ -52,10 +51,9 @@ export const Editor = ({
         }
         return ref.current[key] + movement;
       });
-      ref.current.value = newContent;
+      setContent(newContent);
       ref.current.selectionStart = selectionStart;
       ref.current.selectionEnd = selectionEnd;
-      setContent(newContent);
     }
   }, [ref, newContent]);
 
@@ -90,37 +88,29 @@ export const Editor = ({
       <textarea
         className="document-content"
         ref={ref}
+        value={content}
         onChange={e => {
-          setContent(e.target.value);
-          let index = 0;
-          for (const [action, part] of diff(
-            content,
-            e.target.value,
-            ref.current.cursorIndex
-          )) {
-            switch (action) {
-              case diff.INSERT:
-                for (const character of part) {
-                  onAddAtom(
-                    character,
-                    document.atoms[index - 1],
-                    document.atoms[index]
-                  );
-                }
-                break;
-              case diff.EQUAL:
-                index += part.length;
-                break;
-              case diff.DELETE:
-                for (let i = 0; i < part.length; i++) {
-                  onDeleteAtom(getId(document.atoms[index + i]));
-                }
-                index += part.length;
-                break;
+          const value = e.target.value;
+          const cursor = ref.current.cursorIndex;
+          setContent(value);
+          setTimeout(() => {
+            let index = 0;
+            for (const [action, part] of diff(content, value, cursor)) {
+              switch (action) {
+                case diff.INSERT:
+                  onAddAtoms(part, index);
+                  break;
+                case diff.EQUAL:
+                  index += part.length;
+                  break;
+                case diff.DELETE:
+                  onDeleteAtoms(index, part.length);
+                  index += part.length;
+                  break;
+              }
             }
-          }
+          }, 0);
         }}
-        defaultValue={content}
         autoFocus
       />
     </div>

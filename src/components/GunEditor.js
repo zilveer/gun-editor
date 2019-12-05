@@ -70,7 +70,7 @@ export const GunEditor = ({ id, priv, epriv }) => {
         await put(
           ...atomIds.map(atomId => [
             `${id}.atoms`,
-            /\w+$/.exec(atomId)[0],
+            /[\w\-]+$/.exec(atomId)[0],
             null
           ])
         );

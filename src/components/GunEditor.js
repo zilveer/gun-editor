@@ -48,7 +48,7 @@ export const GunEditor = ({ id, priv, epriv }) => {
     <Editor
       document={document}
       id={id}
-      timeout={500}
+      timeout={2000}
       onSetDocumentTitle={title => put([id, "title", title])}
       onContent={(innerAtoms, innerContent, newContent, cursor) => {
         let index = 0;

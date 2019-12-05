@@ -1,76 +1,20 @@
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import diff from "fast-diff";
 import { getPub } from "nicks-gun-utils";
 
 export const Editor = ({
-  getId,
   id,
   document,
   onSetDocumentTitle,
-  onAddAtoms,
-  onDeleteAtoms
+  onContent,
+  timeout
 }) => {
   const pub = getPub(id);
   const title =
     (document && document.title) ||
     id.replace(`~${pub}.`, "").replace(`~${pub}`);
   const [editing, setEditing] = useState(false);
-  const [checkForUpdates, setCheckForUpdates] = useState();
   const [newDocumentTitle, setNewDocumentTitle] = useState("");
-  const ref = useRef(null);
-  const [{ lastContent, lastChange }, setLastChange] = useState({
-    lastContent: document.content
-  });
-
-  useEffect(() => {
-    if (ref.current && document.content !== lastContent) {
-      if (lastChange && lastChange > +new Date() - 1000) {
-        // don't accept updates changes while typing, try again in a second
-        // useful so external changes aren't disruptive,
-        // but mainly because internal gun changes could be not up to date
-        // and cause a regression in the textarea
-        setTimeout(() => setCheckForUpdates({}), 1000);
-        return;
-      }
-      const [selectionStart, selectionEnd] = [
-        "selectionStart",
-        "selectionEnd"
-      ].map(key => {
-        const value = ref.current[key];
-        let index = 0;
-        let movement = 0;
-        thefor: for (const [action, part] of diff(
-          ref.current.value,
-          document.content
-        )) {
-          switch (action) {
-            case diff.INSERT:
-              movement += part.length;
-              break;
-            case diff.EQUAL:
-              if (value < index + part.length) {
-                break thefor;
-              }
-              break;
-            case diff.DELETE:
-              if (value < index + part.length) {
-                movement -= value - index;
-                break thefor;
-              }
-
-              movement -= part.length;
-              index += part.length;
-              break;
-          }
-        }
-        return ref.current[key] + movement;
-      });
-      setLastChange({ lastContent: document.content });
-      ref.current.value = document.content;
-      ref.current.selectionStart = selectionStart;
-      ref.current.selectionEnd = selectionEnd;
-    }
-  }, [ref, document.content, checkForUpdates]);
 
   return (
     <div className="document">
@@ -91,7 +35,7 @@ export const Editor = ({
         </form>
       ) : (
         <h1
-          onDoubleClick={e => {
+          onDoubleClick={() => {
             setNewDocumentTitle(document.title);
             setEditing(true);
           }}
@@ -100,45 +44,128 @@ export const Editor = ({
           {title}
         </h1>
       )}
-      <textarea
-        className="document-content"
-        ref={ref}
-        defaultValue={lastContent}
-        onChange={e => {
-          const value = e.target.value;
-          setLastChange({ lastContent: value, lastChange: +new Date() });
-          setTimeout(() => {
-            let index = 0;
-            for (const [action, part] of diff(
-              lastContent,
-              value,
-              ref.current.cursorIndex
-            )) {
-              switch (action) {
-                case diff.INSERT:
-                  onAddAtoms(
-                    part,
-                    document.atoms[index - 1],
-                    document.atoms[index]
-                  );
-                  break;
-                case diff.EQUAL:
-                  index += part.length;
-                  break;
-                case diff.DELETE:
-                  const ids = [];
-                  for (let i = 0; i < part.length; i++) {
-                    ids.push(getId(document.atoms[index + i]));
-                  }
-                  onDeleteAtoms(ids);
-                  index += part.length;
-                  break;
-              }
-            }
-          }, 0);
-        }}
-        autoFocus
+      <OuterBufferEditor
+        atoms={document.atoms}
+        content={document.content}
+        onContent={onContent}
+        timeout={timeout}
       />
     </div>
+  );
+};
+
+// Notify inner changes after timeout since last inner change
+// Apply outer changes after timeout since last outer change or change notification
+const OuterBufferEditor = ({ atoms, content, timeout, onContent }) => {
+  const [dirty, setDirty] = useState(false);
+  const [[innerAtoms, innerContent], setInnerContent] = useState([
+    atoms,
+    content
+  ]);
+  useEffect(() => {
+    if (dirty) {
+      return;
+    }
+    // just went from dirty to clean, or content changed
+    const handler = setTimeout(() => {
+      setInnerContent([atoms, content]);
+    }, timeout);
+    return () => clearTimeout(handler);
+  }, [content, dirty]);
+  return (
+    <BufferedEditor
+      content={innerContent}
+      onDirty={() => setDirty(true)}
+      timeout={timeout}
+      onContent={(newContent, cursor) => {
+        onContent(innerAtoms, innerContent, newContent, cursor);
+        setDirty(false);
+      }}
+    />
+  );
+};
+
+// Immediately applies outer changes
+// Notifies dirty
+// Notifies inner changes after timeout since last inner change
+const BufferedEditor = ({ content, onDirty, onContent, timeout }) => {
+  const [[newContent, cursor], set] = useState([content]);
+  useEffect(() => {
+    if (newContent === content) {
+      return;
+    }
+    const handler = setTimeout(() => onContent(newContent, cursor), timeout);
+    return () => clearTimeout(handler);
+  }, [newContent]);
+  return (
+    <RealTimeEditor
+      content={content}
+      onContent={(content, cursor) => {
+        onDirty();
+        set([content, cursor]);
+      }}
+    />
+  );
+};
+
+// Immediately applies and notifies changes
+const RealTimeEditor = ({ content, onContent }) => {
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!ref) {
+      return;
+    }
+
+    const [selectionStart, selectionEnd] = [
+      "selectionStart",
+      "selectionEnd"
+    ].map(key => {
+      const value = ref.current[key];
+      let index = 0;
+      let movement = 0;
+      thefor: for (const [action, part] of diff(ref.current.value, content)) {
+        switch (action) {
+          case diff.INSERT:
+            movement += part.length;
+            break;
+          case diff.EQUAL:
+            if (value < index + part.length) {
+              break thefor;
+            }
+            break;
+          case diff.DELETE:
+            if (value < index + part.length) {
+              movement -= value - index;
+              break thefor;
+            }
+
+            movement -= part.length;
+            index += part.length;
+            break;
+        }
+      }
+      return (ref.current[key] += movement);
+    });
+    ref.current.value = content;
+    ref.current.selectionStart = selectionStart;
+    ref.current.selectionEnd = selectionEnd;
+  }, [ref, content]);
+
+  return (
+    <textarea
+      className="document-content"
+      ref={ref}
+      defaultValue={content}
+      onChange={e =>
+        onContent(
+          e.target.value,
+          ref.current.cursorIndex,
+          ref.current.selectionStart,
+          ref.current.selectionEnd
+        )
+      }
+      autoFocus
+    />
   );
 };

@@ -2,6 +2,7 @@ import { Editor } from "./Editor";
 import { GunContinuousSequence } from "crdt-continuous-sequence";
 import React, { useState, useEffect } from "react";
 import { useGun, getId, getUUID, getPub, getSet } from "nicks-gun-utils";
+import diff from "fast-diff";
 
 const Gun = require("gun/gun");
 require("gun/sea");
@@ -45,35 +46,45 @@ export const GunEditor = ({ id, priv, epriv }) => {
 
   return (
     <Editor
-      getId={getId}
       document={document}
       id={id}
+      timeout={500}
       onSetDocumentTitle={title => put([id, "title", title])}
-      onAddAtoms={async (atoms, prev, next) => {
+      onContent={(innerAtoms, innerContent, newContent, cursor) => {
+        let index = 0;
         const puts = [];
-        for (const atom of atoms) {
-          const key = getUUID(gun);
-          const atomId = `${id}.atoms.${key}`;
-          puts.push(
-            [atomId, "atom", atom],
-            [
-              atomId,
-              "index",
-              JSON.stringify(cs.getIndexBetween(atomId, prev, next))
-            ],
-            [`${id}.atoms`, key, { "#": atomId }]
-          );
+        for (const [action, part] of diff(innerContent, newContent, cursor)) {
+          switch (action) {
+            case diff.INSERT:
+              const prev = innerAtoms[index - 1];
+              const next = innerAtoms[index];
+              for (const atom of part) {
+                const key = getUUID(gun);
+                const atomId = `${id}.atoms.${key}`;
+                puts.push(
+                  [atomId, "atom", atom],
+                  [
+                    atomId,
+                    "index",
+                    JSON.stringify(cs.getIndexBetween(atomId, prev, next))
+                  ],
+                  [`${id}.atoms`, key, { "#": atomId }]
+                );
+              }
+              break;
+            case diff.EQUAL:
+              index += part.length;
+              break;
+            case diff.DELETE:
+              for (let i = 0; i < part.length; i++) {
+                const atomId = getId(innerAtoms[index + i]);
+                puts.push([`${id}.atoms`, /[\w\-]+$/.exec(atomId)[0], null]);
+              }
+              index += part.length;
+              break;
+          }
         }
-        await put(...puts);
-      }}
-      onDeleteAtoms={async atomIds => {
-        await put(
-          ...atomIds.map(atomId => [
-            `${id}.atoms`,
-            /[\w\-]+$/.exec(atomId)[0],
-            null
-          ])
-        );
+        put(...puts);
       }}
     />
   );

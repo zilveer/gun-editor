@@ -7,21 +7,31 @@ export const Editor = ({
   id,
   document,
   onSetDocumentTitle,
-  onAddAtom,
-  onDeleteAtom
+  onAddAtoms,
+  onDeleteAtoms
 }) => {
   const pub = getPub(id);
   const title =
     (document && document.title) ||
     id.replace(`~${pub}.`, "").replace(`~${pub}`);
   const [editing, setEditing] = useState(false);
+  const [checkForUpdates, setCheckForUpdates] = useState();
   const [newDocumentTitle, setNewDocumentTitle] = useState("");
   const ref = useRef(null);
-  const newContent = document.atoms.map(atom => atom.atom).join("");
-  const [content, setContent] = useState(newContent);
+  const [{ lastContent, lastChange }, setLastChange] = useState({
+    lastContent: document.content
+  });
 
   useEffect(() => {
-    if (ref.current && newContent !== content) {
+    if (ref.current && document.content !== lastContent) {
+      if (lastChange && lastChange > +new Date() - 1000) {
+        // don't accept updates changes while typing, try again in a second
+        // useful so external changes aren't disruptive,
+        // but mainly because internal gun changes could be not up to date
+        // and cause a regression in the textarea
+        setTimeout(() => setCheckForUpdates({}), 1000);
+        return;
+      }
       const [selectionStart, selectionEnd] = [
         "selectionStart",
         "selectionEnd"
@@ -29,7 +39,10 @@ export const Editor = ({
         const value = ref.current[key];
         let index = 0;
         let movement = 0;
-        thefor: for (const [action, part] of diff(content, newContent)) {
+        thefor: for (const [action, part] of diff(
+          ref.current.value,
+          document.content
+        )) {
           switch (action) {
             case diff.INSERT:
               movement += part.length;
@@ -52,12 +65,12 @@ export const Editor = ({
         }
         return ref.current[key] + movement;
       });
-      ref.current.value = newContent;
+      setLastChange({ lastContent: document.content });
+      ref.current.value = document.content;
       ref.current.selectionStart = selectionStart;
       ref.current.selectionEnd = selectionEnd;
-      setContent(newContent);
     }
-  }, [ref, newContent]);
+  }, [ref, document.content, checkForUpdates]);
 
   return (
     <div className="document">
@@ -90,37 +103,40 @@ export const Editor = ({
       <textarea
         className="document-content"
         ref={ref}
+        defaultValue={lastContent}
         onChange={e => {
-          setContent(e.target.value);
-          let index = 0;
-          for (const [action, part] of diff(
-            content,
-            e.target.value,
-            ref.current.cursorIndex
-          )) {
-            switch (action) {
-              case diff.INSERT:
-                for (const character of part) {
-                  onAddAtom(
-                    character,
+          const value = e.target.value;
+          setLastChange({ lastContent: value, lastChange: +new Date() });
+          setTimeout(() => {
+            let index = 0;
+            for (const [action, part] of diff(
+              lastContent,
+              value,
+              ref.current.cursorIndex
+            )) {
+              switch (action) {
+                case diff.INSERT:
+                  onAddAtoms(
+                    part,
                     document.atoms[index - 1],
                     document.atoms[index]
                   );
-                }
-                break;
-              case diff.EQUAL:
-                index += part.length;
-                break;
-              case diff.DELETE:
-                for (let i = 0; i < part.length; i++) {
-                  onDeleteAtom(getId(document.atoms[index + i]));
-                }
-                index += part.length;
-                break;
+                  break;
+                case diff.EQUAL:
+                  index += part.length;
+                  break;
+                case diff.DELETE:
+                  const ids = [];
+                  for (let i = 0; i < part.length; i++) {
+                    ids.push(getId(document.atoms[index + i]));
+                  }
+                  onDeleteAtoms(ids);
+                  index += part.length;
+                  break;
+              }
             }
-          }
+          }, 0);
         }}
-        defaultValue={content}
         autoFocus
       />
     </div>

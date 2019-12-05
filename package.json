@@ -16,7 +16,7 @@
     "crdt-continuous-sequence": "^1.0.0",
     "fast-diff": "^1.2.0",
     "gun": "^0.2019.930",
-    "nicks-gun-utils": "^1.0.3",
+    "nicks-gun-utils": "^2.0.0",
     "react": "^16.12.0",
     "react-beautiful-dnd": "^12.0.0",
     "react-dom": "^16.12.0",

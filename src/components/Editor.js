@@ -67,10 +67,7 @@ const OuterBufferEditor = ({ atoms, content, timeout, onContent }) => {
       return;
     }
     // just went from dirty to clean, or content changed
-    const handler = setTimeout(() => {
-      setInnerContent([atoms, content]);
-    }, timeout);
-    return () => clearTimeout(handler);
+    setInnerContent([atoms, content]);
   }, [content, dirty]);
   return (
     <BufferedEditor

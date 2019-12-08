@@ -15,7 +15,10 @@ export const GunEditor = ({ id, priv, epriv }) => {
 
   useEffect(() => {
     const gun = Gun({
-      peers: ["https://gunjs.herokuapp.com/gun"],
+      peers: [
+        "https://gunjs.herokuapp.com/gun",
+        "https://nicks-gun-server.herokuapp.com/gun"
+      ],
       uuid: () => Gun.state.lex() + "-" + Gun.text.random()
     });
     gun.get(id).on(onData);

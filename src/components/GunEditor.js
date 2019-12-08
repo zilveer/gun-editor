@@ -34,7 +34,9 @@ export const GunEditor = ({ id, priv, epriv }) => {
   const cs = new GunContinuousSequence(gun);
   useEffect(() => {
     if (gun) {
-      const atoms = cs.sort(getSet(data, `${id}.atoms`));
+      const atoms = cs
+        .sort(getSet(data, `${id}.atoms`))
+        .filter(atom => atom.atom !== undefined);
       setDocument({
         ...data[id],
         atoms,

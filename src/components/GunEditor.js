@@ -6,6 +6,10 @@ import diff from "fast-diff";
 
 const Gun = require("gun/gun");
 require("gun/sea");
+require("gun/lib/radix");
+require("gun/lib/radisk");
+require("gun/lib/store");
+require("gun/lib/rindexed");
 
 export const GunEditor = ({ id, priv, epriv }) => {
   const [gun, setGun] = useState(null);
@@ -15,6 +19,7 @@ export const GunEditor = ({ id, priv, epriv }) => {
 
   useEffect(() => {
     const gun = Gun({
+      localStorage: false,
       peers: [
         "https://gunjs.herokuapp.com/gun",
         "https://nicks-gun-server.herokuapp.com/gun"
